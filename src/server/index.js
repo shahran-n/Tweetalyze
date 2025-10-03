@@ -42,15 +42,44 @@ const cache = new Map(); // key -> { ts, data }
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 async function fetchJson(url, token) {
+  // Centralized fetch with rate-limit logging
   const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-  const json = await r.json();
-  if (!r.ok) {
-    const message = json && (json.title || json.error || json.message || JSON.stringify(json));
-    const err = new Error(message || 'Request failed');
-    err.status = r.status;
+  // Read rate limit headers (may be missing depending on endpoint)
+  const remaining = r.headers.get('x-rate-limit-remaining');
+  const limit = r.headers.get('x-rate-limit-limit');
+  const resetRaw = r.headers.get('x-rate-limit-reset');
+  const retryAfter = r.headers.get('retry-after');
+  const reset = resetRaw ? Number(resetRaw) * 1000 : null;
+
+  try {
+    const json = await r.json();
+
+    // Log request + rate limit info for debugging
+    console.log(`[Twitter] GET ${url} -> ${r.status} ${r.statusText} | remaining=${remaining || 'n/a'} limit=${limit || 'n/a'} reset=${reset ? new Date(reset).toISOString() : 'n/a'} retry-after=${retryAfter || 'n/a'}`);
+
+    if (!r.ok) {
+      const message = json && (json.title || json.error || json.message || JSON.stringify(json));
+      const err = new Error(message || 'Request failed');
+      err.status = r.status;
+      // attach rate limit info for upstream handling
+      err.rateLimit = {
+        remaining: remaining ? Number(remaining) : undefined,
+        limit: limit ? Number(limit) : undefined,
+        reset: reset || undefined,
+        retryAfter: retryAfter ? Number(retryAfter) : undefined
+      };
+      if (r.status === 429) console.warn('[Twitter] Rate limit reached for request', url, err.rateLimit);
+      throw err;
+    }
+
+    return json;
+  } catch (err) {
+    // If parsing the JSON failed, still log headers and status
+    if (err instanceof SyntaxError) {
+      console.error('[Twitter] Failed to parse JSON response from', url, 'status=', r.status, 'headers=', { remaining, limit, resetRaw, retryAfter });
+    }
     throw err;
   }
-  return json;
 }
 
 // GET /api/user-analytics?handle=jack
