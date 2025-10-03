@@ -1,23 +1,43 @@
-import React, { Component } from 'react';
+import React from 'react';
 import './app.css';
-import ReactImage from './react.png';
+import Sidebar from './components/Sidebar';
+import Header from './components/Header';
+import Dashboard from './pages/Dashboard';
+import PlaceholderPage from './pages/PlaceholderPage';
 
-export default class App extends Component {
-  state = { username: null };
+const routes = {
+  '#/dashboard': <Dashboard />,
+  '#/play-tweetle': <PlaceholderPage title="Play Tweetle" />,
+  '#/search': <PlaceholderPage title="Search" />,
+  '#/chart-builder': <PlaceholderPage title="Chart Builder" />,
+  '#/newsboard': <PlaceholderPage title="Newsboard" />,
+  '#/quick-trend': <PlaceholderPage title="Quick Trend" />,
+  '#/sentiment-analysis': <PlaceholderPage title="Sentiment Analysis" />,
+  '#/bot-training': <PlaceholderPage title="Bot Training" />,
+  '#/tweet-generator': <PlaceholderPage title="Tweet Generator" />
+};
 
-  componentDidMount() {
-    fetch('/api/getUsername')
-      .then(res => res.json())
-      .then(user => this.setState({ username: user.username }));
-  }
+export default function App() {
+  const [route, setRoute] = React.useState(window.location.hash || '#/dashboard');
 
-  render() {
-    const { username } = this.state;
-    return (
-      <div>
-        {username ? <h1>{`Hello ${username}`}</h1> : <h1>Loading.. please wait!</h1>}
-        <img src={ReactImage} alt="react" />
+  React.useEffect(() => {
+    const onHashChange = () => setRoute(window.location.hash || '#/dashboard');
+    window.addEventListener('hashchange', onHashChange);
+    if (!window.location.hash) {
+      window.location.hash = '#/dashboard';
+    }
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+
+  return (
+    <div className="app-shell">
+      <Sidebar currentRoute={route} />
+      <div className="app-main">
+        <Header />
+        <div className="app-content">
+          {routes[route] || <PlaceholderPage title="Not Found" />}
+        </div>
       </div>
-    );
-  }
+    </div>
+  );
 }
