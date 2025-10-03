@@ -16,6 +16,7 @@ export default function Dashboard({ searchQuery, searchData, searchLoading, sear
   const retweets = searchData && searchData.analytics && searchData.analytics.retweets;
   const tweetsPerDay = searchData && searchData.analytics && searchData.analytics.tweets_per_day;
   const sentimentScore = searchData && searchData.analytics && searchData.analytics.sentiment_score;
+  const topWords = searchData && searchData.analytics && searchData.analytics.top_words;
   
   return (
     <div>
@@ -49,27 +50,45 @@ export default function Dashboard({ searchQuery, searchData, searchLoading, sear
           </div>
         </div>
         <div className="panel">
-          <div className="panel-header">Word Cloud (Last User Only)</div>
-          <div className="panel-body" style={{ padding: 14, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-            {topWords && topWords.length > 0 ? (
-              topWords.slice(0, 15).map((item, i) => {
-                const size = Math.max(12, Math.min(24, 12 + (item.count * 2)));
-                return (
-                  <span
-                    key={i}
-                    style={{
-                      fontSize: size,
-                      fontWeight: 600,
-                      color: i < 5 ? '#3b5bdb' : i < 10 ? '#6366f1' : '#9ca3af',
-                      padding: '2px 6px',
-                      borderRadius: 4,
-                      background: i < 5 ? '#eef2ff' : '#f9fafb'
-                    }}
-                  >
-                    {item.word}
-                  </span>
-                );
-              })
+          <div className="panel-header">Media Breakdown</div>
+          <div className="panel-body" style={{ padding: 14 }}>
+            {searchData?.analytics?.media_breakdown ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {Object.entries(searchData.analytics.media_breakdown).map(([type, count]) => {
+                  const total = Object.values(searchData.analytics.media_breakdown).reduce((a, b) => a + b, 0);
+                  const percentage = total > 0 ? Math.round((count / total) * 100) : 0;
+                  const barColor = {
+                    'photo': '#4ade80',  // green
+                    'video': '#3b82f6',  // blue
+                    'gif': '#8b5cf6',    // purple
+                    'link': '#f59e0b',   // amber
+                    'text_only': '#6b7280' // gray
+                  }[type] || '#6b7280';
+                  
+                  return count > 0 && (
+                    <div key={type} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ textTransform: 'capitalize' }}>{type.replace('_', ' ')}</span>
+                        <span style={{ fontWeight: 600 }}>{count} ({percentage}%)</span>
+                      </div>
+                      <div style={{ 
+                        width: '100%', 
+                        height: '8px', 
+                        backgroundColor: '#f3f4f6',
+                        borderRadius: '4px',
+                        overflow: 'hidden'
+                      }}>
+                        <div style={{
+                          width: `${percentage}%`,
+                          height: '100%',
+                          backgroundColor: barColor,
+                          transition: 'width 0.3s ease'
+                        }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             ) : (
               <div style={{ color: '#6b7280' }}>No data available</div>
             )}
