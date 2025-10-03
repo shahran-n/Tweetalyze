@@ -69,14 +69,23 @@ app.get('/api/user-analytics', async (req, res) => {
   }
 
   try {
-    // 1) User profile
-    const user = await fetchJson(`https://api.twitter.com/2/users/by/username/${encodeURIComponent(handle)}?user.fields=public_metrics,created_at,verified,description,location,profile_image_url`, token);
+    // Get user info and tweets in a single request using expansions
+    const userTweetsUrl = new URL(`https://api.twitter.com/2/tweets/search/recent`);
+    userTweetsUrl.searchParams.set('query', `from:${handle}`);
+    userTweetsUrl.searchParams.set('max_results', '5');
+    userTweetsUrl.searchParams.set('tweet.fields', 'created_at,public_metrics,entities,attachments');
+    userTweetsUrl.searchParams.set('expansions', 'author_id,attachments.media_keys');
+    userTweetsUrl.searchParams.set('user.fields', 'id,name,username,public_metrics,verified,description,location,profile_image_url');
+    userTweetsUrl.searchParams.set('media.fields', 'type,url');
+    
+    const response = await fetchJson(userTweetsUrl.toString(), token);
+    
+    if (!response.data || !response.includes || !response.includes.users) {
+      return res.status(404).json({ error: 'User not found' });
+    }
 
-    const userId = user && user.data && user.data.id;
-    if (!userId) return res.status(404).json({ error: 'User not found' });
-
-    // 2) Recent tweets for frequency estimate
-    const tweets = await fetchJson(`https://api.twitter.com/2/users/${userId}/tweets?max_results=5&tweet.fields=created_at,public_metrics`, token);
+    const user = response.includes.users[0];
+    const tweets = response.data;
 
     const tweetList = Array.isArray(tweets.data) ? tweets.data : [];
     let tweetsPerDay = 0;
@@ -114,16 +123,55 @@ app.get('/api/user-analytics', async (req, res) => {
       .slice(0, 20)
       .map(([word, count]) => ({ word, count }));
 
-    const metrics = user.data.public_metrics || {};
+    const metrics = user.public_metrics || {};
+    
+    // Build media breakdown
+    const mediaBreakdown = { text_only: 0, link: 0, photo: 0, video: 0, gif: 0 };
+    const mediaMap = {};
+    if (response.includes.media) {
+      response.includes.media.forEach(media => {
+        mediaMap[media.media_key] = media.type;
+      });
+    }
+
+    tweets.forEach(tweet => {
+      let hasMedia = false;
+      let hasLink = false;
+
+      // Check for media
+      if (tweet.attachments && tweet.attachments.media_keys) {
+        tweet.attachments.media_keys.forEach(key => {
+          const mediaType = mediaMap[key];
+          if (mediaType) {
+            mediaBreakdown[mediaType]++;
+            hasMedia = true;
+          }
+        });
+      }
+
+      // Check for links
+      if (tweet.entities && tweet.entities.urls && tweet.entities.urls.length > 0) {
+        hasLink = true;
+        if (!hasMedia) {
+          mediaBreakdown.link++;
+        }
+      }
+
+      // If no media or links, it's text only
+      if (!hasMedia && !hasLink) {
+        mediaBreakdown.text_only++;
+      }
+    });
+
     const payload = {
       user: {
-        id: user.data.id,
-        name: user.data.name,
-        username: user.data.username,
-        verified: user.data.verified,
-        description: user.data.description,
-        location: user.data.location,
-        profile_image_url: user.data.profile_image_url,
+        id: user.id,
+        name: user.name,
+        username: user.username,
+        verified: user.verified,
+        description: user.description,
+        location: user.location,
+        profile_image_url: user.profile_image_url,
         followers: metrics.followers_count,
         following: metrics.following_count,
         tweet_count: metrics.tweet_count,
@@ -136,7 +184,8 @@ app.get('/api/user-analytics', async (req, res) => {
         retweets: totalRetweets,
         avg_tweet_length: avgLength,
         unique_words: Object.keys(wordCounts).length,
-        top_words: topWords
+        top_words: topWords,
+        media_breakdown: mediaBreakdown
       },
       recentTweets: tweetList
     };
