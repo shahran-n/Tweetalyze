@@ -90,6 +90,30 @@ app.get('/api/user-analytics', async (req, res) => {
       tweetsPerDay = 1; // minimal estimate
     }
 
+    // Calculate analytics from tweets
+    const totalLikes = tweetList.reduce((sum, t) => sum + ((t.public_metrics && t.public_metrics.like_count) || 0), 0);
+    const totalRetweets = tweetList.reduce((sum, t) => sum + ((t.public_metrics && t.public_metrics.retweet_count) || 0), 0);
+    const avgLength = tweetList.length > 0 ? Math.round(tweetList.reduce((sum, t) => sum + (t.text ? t.text.length : 0), 0) / tweetList.length) : 0;
+    
+    // Extract words for word cloud
+    const allWords = tweetList
+      .map(t => t.text || '')
+      .join(' ')
+      .toLowerCase()
+      .replace(/[^\w\s]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length > 2 && !['the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'had', 'her', 'was', 'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how', 'its', 'may', 'new', 'now', 'old', 'see', 'two', 'way', 'who', 'boy', 'did', 'man', 'men', 'put', 'say', 'she', 'too', 'use'].includes(w));
+    
+    const wordCounts = {};
+    allWords.forEach(word => {
+      wordCounts[word] = (wordCounts[word] || 0) + 1;
+    });
+    
+    const topWords = Object.entries(wordCounts)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 20)
+      .map(([word, count]) => ({ word, count }));
+
     const metrics = user.data.public_metrics || {};
     const payload = {
       user: {
@@ -108,8 +132,11 @@ app.get('/api/user-analytics', async (req, res) => {
       analytics: {
         tweets_per_day: tweetsPerDay,
         recent_sample_size: tweetList.length,
-        likes: tweetList.reduce((a, t) => a + ((t.public_metrics && t.public_metrics.like_count) || 0), 0),
-        retweets: tweetList.reduce((a, t) => a + ((t.public_metrics && t.public_metrics.retweet_count) || 0), 0)
+        likes: totalLikes,
+        retweets: totalRetweets,
+        avg_tweet_length: avgLength,
+        unique_words: Object.keys(wordCounts).length,
+        top_words: topWords
       },
       recentTweets: tweetList
     };

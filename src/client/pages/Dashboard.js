@@ -12,32 +12,68 @@ const Metric = ({ title, color, value }) => (
 export default function Dashboard({ searchQuery, searchData, searchLoading, searchError, userProfile }) {
   const followers = userProfile && userProfile.followers;
   const following = userProfile && userProfile.following;
-  const sampleSize = searchData && searchData.analytics ? searchData.analytics.recent_sample_size : (Array.isArray(searchData && searchData.data) ? searchData.data.length : undefined);
   const likes = searchData && searchData.analytics && searchData.analytics.likes;
   const retweets = searchData && searchData.analytics && searchData.analytics.retweets;
   const tweetsPerDay = searchData && searchData.analytics && searchData.analytics.tweets_per_day;
+  const sentimentScore = searchData && searchData.analytics && searchData.analytics.sentiment_score;
+  
   return (
     <div>
       <div className="cards-grid">
-        <Metric title="Sample Size" color="blue" value={sampleSize} />
-        <Metric title="Followers" color="purple" value={followers} />
-        <Metric title="Following" color="yellow" value={following} />
-        <Metric title="Frequency (Tweets/Day)" color="teal" value={tweetsPerDay} />
-        <Metric title="Length (Characters)" color="blue" />
-        <Metric title="Sample Unique Words" color="yellow" />
-        <Metric title="Retweets" color="green" value={retweets} />
-        <Metric title="Likes" color="red" value={likes} />
+        {/* <Metric title="Sample Size" color="blue" value={sampleSize} /> */}
+        <Metric title="Followers" color="yellow" value={followers} />
+        <Metric title="Following" color="blue" value={following} />
+        <Metric title="Frequency (Tweets/Day)" color="red" value={tweetsPerDay} />
+        <Metric title="Retweets" color="purple" value={retweets} />
+        <Metric title="Likes" color="green" value={likes} />
         <Metric title="Sentiment Score" color="yellow" />
       </div>
 
       <div className="panels">
         <div className="panel">
           <div className="panel-header">Sample Composition (%)</div>
-          <div className="panel-body" />
+          <div className="panel-body" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {topWords && topWords.length > 0 ? (
+              topWords.slice(0, 10).map((item, i) => {
+                const percentage = Math.round((item.count / topWords[0].count) * 100);
+                return (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>{item.word}</span>
+                    <span style={{ fontWeight: 600, color: '#3b5bdb' }}>{percentage}%</span>
+                  </div>
+                );
+              })
+            ) : (
+              <div style={{ color: '#6b7280' }}>No data available</div>
+            )}
+          </div>
         </div>
         <div className="panel">
           <div className="panel-header">Word Cloud (Last User Only)</div>
-          <div className="panel-body" />
+          <div className="panel-body" style={{ padding: 14, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+            {topWords && topWords.length > 0 ? (
+              topWords.slice(0, 15).map((item, i) => {
+                const size = Math.max(12, Math.min(24, 12 + (item.count * 2)));
+                return (
+                  <span
+                    key={i}
+                    style={{
+                      fontSize: size,
+                      fontWeight: 600,
+                      color: i < 5 ? '#3b5bdb' : i < 10 ? '#6366f1' : '#9ca3af',
+                      padding: '2px 6px',
+                      borderRadius: 4,
+                      background: i < 5 ? '#eef2ff' : '#f9fafb'
+                    }}
+                  >
+                    {item.word}
+                  </span>
+                );
+              })
+            ) : (
+              <div style={{ color: '#6b7280' }}>No data available</div>
+            )}
+          </div>
         </div>
       </div>
 
