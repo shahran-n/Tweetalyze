@@ -1,25 +1,32 @@
 import React from 'react';
 
-const Metric = ({ title, color }) => (
+const Metric = ({ title, color, value }) => (
   <div className={`metric-card ${color}`}>
     <div>
       <div className="metric-title">{title}</div>
+      {typeof value !== 'undefined' && <div style={{ fontSize: 20, fontWeight: 700, marginTop: 6 }}>{value}</div>}
     </div>
   </div>
 );
 
-export default function Dashboard({ searchQuery, searchData, searchLoading, searchError }) {
+export default function Dashboard({ searchQuery, searchData, searchLoading, searchError, userProfile }) {
+  const followers = userProfile && userProfile.followers;
+  const following = userProfile && userProfile.following;
+  const sampleSize = searchData && searchData.analytics ? searchData.analytics.recent_sample_size : (Array.isArray(searchData && searchData.data) ? searchData.data.length : undefined);
+  const likes = searchData && searchData.analytics && searchData.analytics.likes;
+  const retweets = searchData && searchData.analytics && searchData.analytics.retweets;
+  const tweetsPerDay = searchData && searchData.analytics && searchData.analytics.tweets_per_day;
   return (
     <div>
       <div className="cards-grid">
-        <Metric title="Sample Size" color="blue" />
-        <Metric title="Followers" color="purple" />
-        <Metric title="Following" color="yellow" />
-        <Metric title="Frequency (Tweets/Day)" color="teal" />
+        <Metric title="Sample Size" color="blue" value={sampleSize} />
+        <Metric title="Followers" color="purple" value={followers} />
+        <Metric title="Following" color="yellow" value={following} />
+        <Metric title="Frequency (Tweets/Day)" color="teal" value={tweetsPerDay} />
         <Metric title="Length (Characters)" color="blue" />
         <Metric title="Sample Unique Words" color="yellow" />
-        <Metric title="Retweets" color="green" />
-        <Metric title="Likes" color="red" />
+        <Metric title="Retweets" color="green" value={retweets} />
+        <Metric title="Likes" color="red" value={likes} />
         <Metric title="Sentiment Score" color="yellow" />
       </div>
 

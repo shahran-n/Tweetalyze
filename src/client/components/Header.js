@@ -6,7 +6,13 @@ export default function Header({ onSearch }) {
   const triggerSearch = () => {
     const q = value.trim();
     if (!q) return;
-    onSearch && onSearch(q);
+    // if the user typed only a handle (with or without @), default to user analytics
+    const handleOnly = q.replace(/^@/, '');
+    if (/^[A-Za-z0-9_]{1,15}$/.test(handleOnly)) {
+      onSearch && onSearch({ type: 'user', value: handleOnly });
+    } else {
+      onSearch && onSearch({ type: 'query', value: q });
+    }
   };
 
   const onKeyDown = (e) => {
