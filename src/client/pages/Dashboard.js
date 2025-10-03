@@ -8,7 +8,7 @@ const Metric = ({ title, color }) => (
   </div>
 );
 
-export default function Dashboard() {
+export default function Dashboard({ searchQuery, searchData, searchLoading, searchError }) {
   return (
     <div>
       <div className="cards-grid">
@@ -31,6 +31,35 @@ export default function Dashboard() {
         <div className="panel">
           <div className="panel-header">Word Cloud (Last User Only)</div>
           <div className="panel-body" />
+        </div>
+      </div>
+
+      <div style={{ marginTop: 16 }} className="panel">
+        <div className="panel-header">Search Results</div>
+        <div className="panel-body" style={{ overflow: 'auto', padding: 14, height: 320 }}>
+          {!searchQuery && <div>Enter a handle or query above and press Enter.</div>}
+          {searchQuery && (
+            <div style={{ marginBottom: 8 }}>
+              <strong>Query:</strong> {searchQuery}
+            </div>
+          )}
+          {searchLoading && <div>Loading...</div>}
+          {searchError && <div style={{ color: '#ef4444' }}>{searchError}</div>}
+          {searchData && (
+            <div>
+              <div style={{ marginBottom: 8 }}>
+                <strong>Results:</strong> {Array.isArray(searchData.data) ? searchData.data.length : 0}
+              </div>
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 12 }}>
+                {(searchData.data || []).map(t => (
+                  <li key={t.id} style={{ border: '1px solid #eef2f7', borderRadius: 10, padding: 12, background: '#fff' }}>
+                    <div style={{ fontSize: 12, color: '#6b7280' }}>{t.id}</div>
+                    <div style={{ whiteSpace: 'pre-wrap' }}>{t.text}</div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       </div>
     </div>

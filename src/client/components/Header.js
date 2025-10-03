@@ -1,12 +1,12 @@
 import React from 'react';
 
-export default function Header() {
+export default function Header({ onSearch }) {
   const [value, setValue] = React.useState('');
 
   const triggerSearch = () => {
     const q = value.trim();
     if (!q) return;
-    window.location.hash = `#/search?q=${encodeURIComponent(q)}`;
+    onSearch && onSearch(q);
   };
 
   const onKeyDown = (e) => {
