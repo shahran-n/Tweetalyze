@@ -57,6 +57,22 @@ yarn build (or npm run build)
 yarn start (or npm start)
 ```
 
+## X (Twitter) API Setup
+
+Create a `.env` file in the project root and add your bearer token:
+
+```bash
+X_BEARER_TOKEN=YOUR_X_API_BEARER_TOKEN
+```
+
+Restart the dev server. The backend exposes a proxy endpoint:
+
+```bash
+GET http://localhost:8080/api/search?q=from:jack%20lang:en%20-is:retweet
+```
+
+This calls the X Recent Search v2 API and returns the JSON result.
+
 ## Documentation
 
 ### Folder Structure

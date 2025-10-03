@@ -4,11 +4,12 @@ import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Dashboard from './pages/Dashboard';
 import PlaceholderPage from './pages/PlaceholderPage';
+import Search from './pages/Search';
 
 const routes = {
   '#/dashboard': <Dashboard />,
   '#/play-tweetle': <PlaceholderPage title="Play Tweetle" />,
-  '#/search': <PlaceholderPage title="Search" />,
+  '#/search': <Search />,
   '#/chart-builder': <PlaceholderPage title="Chart Builder" />,
   '#/newsboard': <PlaceholderPage title="Newsboard" />,
   '#/quick-trend': <PlaceholderPage title="Quick Trend" />,
