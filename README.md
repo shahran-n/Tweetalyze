@@ -94,5 +94,3 @@ If you see "Too Many Requests" errors:
 - Open browser console (F12) to check for errors
 - Restart the server after changing `.env`
 ---
-
-Built with ❤️ by [Your Name](https://github.com/yourusername)
