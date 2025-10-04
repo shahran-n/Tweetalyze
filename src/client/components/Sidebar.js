@@ -13,21 +13,59 @@ const links = [
 ];
 
 export default function Sidebar({ currentRoute }) {
+  const [isOpen, setIsOpen] = React.useState(false);
+
+  const toggleMenu = () => setIsOpen(!isOpen);
+  
+  const closeMenu = () => setIsOpen(false);
+
+  // Close menu when route changes
+  React.useEffect(() => {
+    closeMenu();
+  }, [currentRoute]);
+
+  // Close menu when clicking outside on mobile
+  React.useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (isOpen && !e.target.closest('.sidebar') && !e.target.closest('.hamburger-btn')) {
+        closeMenu();
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [isOpen]);
+
   return (
-    <aside className="sidebar">
-      <div className="sidebar-header">
-        <div className="sidebar-logo" />
-        <div className="sidebar-title">TWEETALYZE</div>
-      </div>
-      <nav className="nav">
-        {links.map(link => (
-          <a key={link.href} href={link.href} className={`nav-link ${currentRoute === link.href ? 'active' : ''}`}>
-            <span>{link.label}</span>
-          </a>
-        ))}
-      </nav>
-    </aside>
+    <>
+      {/* Hamburger button - only visible on mobile */}
+      <button className="hamburger-btn" onClick={toggleMenu} aria-label="Toggle menu">
+        <span className={isOpen ? 'active' : ''}></span>
+        <span className={isOpen ? 'active' : ''}></span>
+        <span className={isOpen ? 'active' : ''}></span>
+      </button>
+
+      {/* Overlay for mobile */}
+      {isOpen && <div className="sidebar-overlay" onClick={closeMenu}></div>}
+
+      {/* Sidebar */}
+      <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
+        <div className="sidebar-header">
+          <div className="sidebar-logo" />
+          <div className="sidebar-title">TWEETALYZE</div>
+        </div>
+        <nav className="nav">
+          {links.map(link => (
+            <a 
+              key={link.href} 
+              href={link.href} 
+              className={`nav-link ${currentRoute === link.href ? 'active' : ''}`}
+              onClick={closeMenu}
+            >
+              <span>{link.label}</span>
+            </a>
+          ))}
+        </nav>
+      </aside>
+    </>
   );
 }
-
-
