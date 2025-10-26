@@ -1,4 +1,4 @@
-# 🐦 Tweetalyze
+# Tweetalyze
 
 A powerful Twitter/X analytics dashboard that provides insights into user activity, engagement metrics, and tweet analysis. Built with React, Node and Express.
 
