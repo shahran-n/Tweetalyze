@@ -79,7 +79,7 @@ export default function TweetGenerator() {
       justifyContent: 'flex-start',
       alignItems: 'center',
       padding: '24px',
-      paddingTop: '150px'
+    //   paddingTop: '150px'
     }}>
       <h1 style={{
         margin: '0 0 24px 0',
