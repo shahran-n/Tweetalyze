@@ -13,14 +13,17 @@
   "author": "Shahran Newaz",
   "license": "MIT",
   "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
     "babel-polyfill": "^6.26.0",
     "dotenv": "^16.4.5",
     "express": "^4.16.3",
     "express-session": "^1.18.2",
     "firebase": "^12.5.0",
     "firebase-admin": "^13.5.0",
+    "node-cron": "^3.0.3",
     "node-fetch": "^2.7.0",
     "openai": "^6.7.0",
+    "postgres": "^3.4.7",
     "react": "^17.0.2",
     "react-dom": "^17.0.2"
   },

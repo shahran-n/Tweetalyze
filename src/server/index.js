@@ -5,6 +5,7 @@ require('dotenv').config();
 
 // Import services
 const { generateTweet, generateTweetVariations } = require('./services/openai');
+const { startNewsIngestion } = require('./workers/newsIngester');
 
 const app = express();
 
@@ -289,4 +290,417 @@ app.post('/api/tweets/generate-variations', async (req, res) => {
   }
 });
 
-app.listen(process.env.PORT || 8080, () => console.log(`Listening on port ${process.env.PORT || 8080}!`));
+// ==================== Newsboard Endpoints ====================
+// All endpoints read from Supabase - no direct News API calls
+
+const {
+  getRecentNews,
+  getHourlyMetrics,
+  getRecentAnomalies,
+  getAllSources
+} = require('./services/supabase');
+
+// Get recent news articles
+app.get('/api/newsboard/recent', async (req, res) => {
+  try {
+    const hours = parseInt(req.query.hours) || 24;
+    const limit = parseInt(req.query.limit) || 50;
+    const offset = parseInt(req.query.offset) || 0;
+    const source = req.query.source || null;
+    const isAnomaly = req.query.isAnomaly === 'true' ? true : req.query.isAnomaly === 'false' ? false : null;
+
+    const articles = await getRecentNews({
+      hours,
+      limit,
+      offset,
+      source,
+      isAnomaly
+    });
+
+    res.json({ articles, count: articles.length });
+  } catch (error) {
+    console.error('Error fetching recent news:', error);
+    res.status(500).json({ 
+      error: error.message || 'Failed to fetch recent news',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// Get hourly metrics for BI dashboard
+app.get('/api/newsboard/metrics', async (req, res) => {
+  try {
+    const hours = parseInt(req.query.hours) || 24;
+    const metrics = await getHourlyMetrics({ hours });
+
+    res.json({ metrics, count: metrics.length });
+  } catch (error) {
+    console.error('Error fetching metrics:', error);
+    res.status(500).json({ 
+      error: error.message || 'Failed to fetch metrics',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// Get recent anomalies
+app.get('/api/newsboard/anomalies', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 20;
+    const status = req.query.status || null;
+
+    const anomalies = await getRecentAnomalies({ limit, status });
+
+    res.json({ anomalies, count: anomalies.length });
+  } catch (error) {
+    console.error('Error fetching anomalies:', error);
+    res.status(500).json({ 
+      error: error.message || 'Failed to fetch anomalies',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// Get all sources
+app.get('/api/newsboard/sources', async (req, res) => {
+  try {
+    const sources = await getAllSources();
+    res.json({ sources, count: sources.length });
+  } catch (error) {
+    console.error('Error fetching sources:', error);
+    res.status(500).json({ 
+      error: error.message || 'Failed to fetch sources',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// Get aggregated stats for dashboard
+app.get('/api/newsboard/stats', async (req, res) => {
+  try {
+    const hours = parseInt(req.query.hours) || 24;
+    
+    const [articles, metrics, anomalies, sources] = await Promise.all([
+      getRecentNews({ hours, limit: 1000 }).catch((err) => {
+        console.error('Error in getRecentNews:', err);
+        return [];
+      }),
+      getHourlyMetrics({ hours }).catch((err) => {
+        console.error('Error in getHourlyMetrics:', err);
+        return [];
+      }),
+      getRecentAnomalies({ limit: 100 }).catch((err) => {
+        console.error('Error in getRecentAnomalies:', err);
+        return [];
+      }),
+      getAllSources().catch((err) => {
+        console.error('Error in getAllSources:', err);
+        return [];
+      })
+    ]);
+
+    const totalArticles = articles.length;
+    const totalAnomalies = anomalies.length;
+    const totalSources = sources.length;
+    
+    const sentiments = articles.map(a => a.sentiment_score).filter(s => s !== null && s !== undefined);
+    const avgSentiment = sentiments.length > 0
+      ? sentiments.reduce((a, b) => a + b, 0) / sentiments.length
+      : null;
+
+    const anomalyRate = totalArticles > 0 ? (totalAnomalies / totalArticles) * 100 : 0;
+
+    // Calculate volume trend from metrics
+    const volumeTrend = metrics.map(m => m.volume || 0);
+
+    // Calculate sentiment distribution from articles
+    const positiveCount = articles.filter(a => 
+      (a.sentiment_label === 'positive' || (a.sentiment_score && a.sentiment_score > 0.1))
+    ).length;
+    const neutralCount = articles.filter(a => 
+      (a.sentiment_label === 'neutral' || (a.sentiment_score && a.sentiment_score >= -0.1 && a.sentiment_score <= 0.1))
+    ).length;
+    const negativeCount = articles.filter(a => 
+      (a.sentiment_label === 'negative' || (a.sentiment_score && a.sentiment_score < -0.1))
+    ).length;
+
+    // Get latest metrics or create from articles
+    let latestMetrics = metrics[metrics.length - 1];
+    if (!latestMetrics || !latestMetrics.positive_count) {
+      latestMetrics = {
+        ...latestMetrics,
+        positive_count: positiveCount,
+        neutral_count: neutralCount,
+        negative_count: negativeCount
+      };
+    }
+
+    res.json({
+      total_articles: totalArticles,
+      total_anomalies: totalAnomalies,
+      total_sources: totalSources,
+      avg_sentiment: avgSentiment,
+      anomaly_rate: anomalyRate,
+      volume_trend: volumeTrend,
+      latest_metrics: latestMetrics
+    });
+  } catch (error) {
+    console.error('Error fetching stats:', error);
+    res.status(500).json({ 
+      error: error.message || 'Failed to fetch stats',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// Manual trigger for news ingestion (useful for testing)
+app.post('/api/newsboard/ingest', async (req, res) => {
+  try {
+    const { ingestNews } = require('./workers/newsIngester');
+    await ingestNews();
+    res.json({ success: true, message: 'News ingestion completed' });
+  } catch (error) {
+    console.error('Error triggering ingestion:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Populate database with mock data (for testing/demo)
+app.post('/api/newsboard/mock-data', async (req, res) => {
+  try {
+    const { populateMockData } = require('./utils/mockDataGenerator');
+    const result = await populateMockData();
+    res.json({ 
+      success: true, 
+      message: 'Mock data populated successfully',
+      ...result
+    });
+  } catch (error) {
+    console.error('Error populating mock data:', error);
+    res.status(500).json({ 
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// Get mock data (for preview without database)
+app.get('/api/newsboard/mock-preview', async (req, res) => {
+  try {
+    const { generateMockArticles, generateMockAnomalies, generateMockHourlyMetrics } = require('./utils/mockDataGenerator');
+    
+    const rawArticles = generateMockArticles();
+    const anomalies = generateMockAnomalies();
+    const metrics = generateMockHourlyMetrics();
+    
+    // Normalize articles to match real data format (published_at instead of publishedAt)
+    const articles = rawArticles.map(article => ({
+      ...article,
+      published_at: article.publishedAt || article.published_at,
+      // Ensure all fields match real data structure
+      id: article.id,
+      title: article.title,
+      description: article.description,
+      content: article.content,
+      url: article.url,
+      source: article.source,
+      author: article.author,
+      image_url: article.urlToImage || article.image_url,
+      sentiment_score: article.sentiment_score,
+      sentiment_label: article.sentiment_label,
+      topic_tags: article.topic_tags || [],
+      is_anomaly: article.is_anomaly || false,
+      anomaly_reasons: article.anomaly_reasons || []
+    }));
+    
+    // Calculate stats
+    const sentiments = articles.map(a => a.sentiment_score).filter(s => s !== null && s !== undefined);
+    const avgSentiment = sentiments.length > 0
+      ? sentiments.reduce((a, b) => a + b, 0) / sentiments.length
+      : null;
+    
+    const totalAnomalies = anomalies.length;
+    const anomalyRate = articles.length > 0 ? (totalAnomalies / articles.length) * 100 : 0;
+    const uniqueSources = new Set(articles.map(a => a.source)).size;
+    
+    // Calculate sentiment distribution
+    const positiveCount = articles.filter(a => 
+      a.sentiment_label === 'positive' || (a.sentiment_score && a.sentiment_score > 0.1)
+    ).length;
+    const neutralCount = articles.filter(a => 
+      a.sentiment_label === 'neutral' || (a.sentiment_score !== null && a.sentiment_score !== undefined && a.sentiment_score >= -0.1 && a.sentiment_score <= 0.1)
+    ).length;
+    const negativeCount = articles.filter(a => 
+      a.sentiment_label === 'negative' || (a.sentiment_score && a.sentiment_score < -0.1)
+    ).length;
+    
+    const stats = {
+      total_articles: articles.length,
+      total_anomalies: totalAnomalies,
+      total_sources: uniqueSources,
+      avg_sentiment: avgSentiment,
+      anomaly_rate: anomalyRate,
+      volume_trend: metrics.map(m => m.volume || 0),
+      latest_metrics: {
+        ...metrics[metrics.length - 1],
+        positive_count: positiveCount,
+        neutral_count: neutralCount,
+        negative_count: negativeCount
+      }
+    };
+    
+    res.json({
+      stats,
+      articles,
+      anomalies,
+      metrics
+    });
+  } catch (error) {
+    console.error('Error generating mock preview:', error);
+    res.status(500).json({ 
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// Clear real data anomalies (clean up any anomalies from real news)
+app.delete('/api/newsboard/clear-real-anomalies', async (req, res) => {
+  try {
+    const sql = require('./db');
+    
+    if (!sql) {
+      return res.status(500).json({ error: 'Database not initialized' });
+    }
+
+    // Delete all anomalies (they will be re-detected on next ingestion if needed)
+    const result = await sql`
+      DELETE FROM anomalies
+    `;
+    
+    res.json({
+      success: true,
+      message: 'All anomalies cleared from database',
+      deleted: Array.isArray(result) ? result.length : (result.count || 0)
+    });
+  } catch (error) {
+    console.error('Error clearing anomalies:', error);
+    res.status(500).json({ 
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// Clear mock data from database
+app.delete('/api/newsboard/clear-mock-data', async (req, res) => {
+  try {
+    const sql = require('./db');
+    
+    if (!sql) {
+      return res.status(500).json({ error: 'Database not initialized' });
+    }
+
+    // Delete mock articles (those with IDs starting with 'normal_article_', 'volume_spike_', 'sentiment_shift_', 'duplicate_')
+    const result1 = await sql`
+      DELETE FROM news_articles 
+      WHERE id LIKE 'normal_article_%'
+         OR id LIKE 'volume_spike_%'
+         OR id LIKE 'sentiment_shift_%'
+         OR id LIKE 'duplicate_%'
+    `;
+    const deletedArticles = Array.isArray(result1) ? result1.length : (result1.count || 0);
+
+    // Delete mock anomalies (those created by mock data generator)
+    const result2 = await sql`
+      DELETE FROM anomalies
+      WHERE related_article_id LIKE 'normal_article_%'
+         OR related_article_id LIKE 'volume_spike_%'
+         OR related_article_id LIKE 'sentiment_shift_%'
+         OR related_article_id LIKE 'duplicate_%'
+    `;
+    const deletedAnomalies = Array.isArray(result2) ? result2.length : (result2.count || 0);
+
+    // Note: We'll leave hourly_metrics as they might contain real data mixed in
+    // If you want to clear them too, you can do it manually via SQL
+
+    // Optionally reset source counts (or we can leave them as they might have real data too)
+    
+    res.json({
+      success: true,
+      message: 'Mock data cleared from database',
+      deleted: {
+        articles: deletedArticles,
+        anomalies: deletedAnomalies.count || 0,
+        metrics: deletedMetrics.count || 0
+      }
+    });
+  } catch (error) {
+    console.error('Error clearing mock data:', error);
+    res.status(500).json({ 
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// Health check endpoint for database connection
+app.get('/api/newsboard/health', async (req, res) => {
+  try {
+    const sql = require('./db');
+    
+    if (!sql) {
+      return res.status(500).json({ 
+        healthy: false,
+        error: 'Database connection not initialized',
+        check: 'DATABASE_URL environment variable is missing'
+      });
+    }
+
+    // Test the connection by running a simple query
+    const result = await sql`SELECT 1 as test`;
+    
+    // Check if tables exist
+    const tables = await sql`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+      AND table_name IN ('news_articles', 'hourly_metrics', 'anomalies', 'sources')
+    `;
+    
+    const existingTables = tables.map(t => t.table_name);
+    const requiredTables = ['news_articles', 'hourly_metrics', 'anomalies', 'sources'];
+    const missingTables = requiredTables.filter(t => !existingTables.includes(t));
+
+    res.json({
+      healthy: true,
+      database: 'connected',
+      tables: {
+        existing: existingTables,
+        missing: missingTables.length > 0 ? missingTables : null
+      },
+      message: missingTables.length > 0 
+        ? `Warning: Missing tables: ${missingTables.join(', ')}. Run supabase_schema.sql to create them.`
+        : 'All tables exist'
+    });
+  } catch (error) {
+    console.error('Database health check error:', error);
+    res.status(500).json({
+      healthy: false,
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+app.listen(process.env.PORT || 8080, () => {
+  console.log(`Listening on port ${process.env.PORT || 8080}!`);
+  
+  // Start background news ingestion (runs every 15 minutes)
+  if (process.env.NEWS_API_KEY && process.env.DATABASE_URL) {
+    startNewsIngestion('*/15 * * * *'); // Every 15 minutes
+    console.log('News ingestion scheduler started');
+  } else {
+    console.warn('News ingestion not started - missing NEWS_API_KEY or DATABASE_URL in .env');
+  }
+});

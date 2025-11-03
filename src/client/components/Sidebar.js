@@ -2,7 +2,7 @@ import React from 'react';
 
 const links = [
   { href: '#/dashboard', label: 'Dashboard' },
-  { href: '#/play-tweetle', label: 'Play Tweetle' },
+  // { href: '#/play-tweetle', label: 'Play Tweetle' },
   // { href: '#/search', label: 'Search' },
   // { href: '#/chart-builder', label: 'Chart Builder' },
   { href: '#/newsboard', label: 'Newsboard' },
@@ -50,7 +50,11 @@ export default function Sidebar({ currentRoute }) {
       {/* Sidebar */}
       <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
-          <div className="sidebar-logo" />
+          <img 
+            src="/tweetalyze.png" 
+            alt="Tweetalyze Logo" 
+            className="sidebar-logo"
+          />
           <div className="sidebar-title">TWEETALYZE</div>
         </div>
         <nav className="nav">

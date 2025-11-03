@@ -5,12 +5,13 @@ import Header from './components/Header';
 import Dashboard from './pages/Dashboard';
 import PlaceholderPage from './pages/PlaceholderPage';
 import TweetGenerator from './pages/TweetGenerator';
+import Newsboard from './pages/Newsboard';
 
 const routes = (props) => ({
   '#/dashboard': <Dashboard {...props} />,
   '#/play-tweetle': <PlaceholderPage title="Play Tweetle" />,
   '#/chart-builder': <PlaceholderPage title="Chart Builder" />,
-  '#/newsboard': <PlaceholderPage title="Newsboard" />,
+  '#/newsboard': <Newsboard />,
   '#/quick-trend': <PlaceholderPage title="Quick Trend" />,
   '#/sentiment-analysis': <PlaceholderPage title="Sentiment Analysis" />,
   '#/bot-training': <PlaceholderPage title="Bot Training" />,

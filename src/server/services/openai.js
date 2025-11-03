@@ -93,8 +93,87 @@ async function generateTweetVariations(prompt, count = 3, options = {}) {
   return tweets;
 }
 
+/**
+ * Analyze sentiment of news article using GPT
+ * Returns an object with { sentiment: 'positive'|'negative'|'neutral', score: -1 to 1 }
+ * @param {string} title - Article title
+ * @param {string} description - Article description/content
+ * @returns {Promise<Object>} Sentiment analysis result
+ */
+async function analyzeSentiment(title, description) {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error('OpenAI API key not configured. Set OPENAI_API_KEY in environment variables.');
+  }
+
+  const text = `${title}\n\n${description || ''}`.trim();
+  
+  if (!text) {
+    return { sentiment: 'neutral', score: 0 };
+  }
+
+  const systemPrompt = `You are a sentiment analysis expert. Analyze the sentiment of news articles and respond with ONLY a JSON object in this exact format:
+{
+  "sentiment": "positive" | "negative" | "neutral",
+  "score": <number between -1 and 1>
+}
+
+Rules:
+- "positive": Overall positive, optimistic, or good news (score: 0.1 to 1.0)
+- "negative": Overall negative, pessimistic, or bad news (score: -1.0 to -0.1)
+- "neutral": Factual, balanced, or neither clearly positive nor negative (score: -0.1 to 0.1)
+- Be accurate and objective`;
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `Analyze the sentiment of this news article:\n\n${text.substring(0, 1000)}` }
+      ],
+      max_tokens: 50,
+      temperature: 0.3, // Lower temperature for more consistent results
+    });
+
+    const content = response.choices[0].message.content.trim();
+    
+    // Try to parse JSON response
+    let result;
+    try {
+      // Remove any markdown code blocks if present
+      const jsonContent = content.replace(/```json\n?|\n?```/g, '').trim();
+      result = JSON.parse(jsonContent);
+    } catch (parseError) {
+      // Fallback: try to extract sentiment from text response
+      const lowerContent = content.toLowerCase();
+      if (lowerContent.includes('positive')) {
+        result = { sentiment: 'positive', score: 0.5 };
+      } else if (lowerContent.includes('negative')) {
+        result = { sentiment: 'negative', score: -0.5 };
+      } else {
+        result = { sentiment: 'neutral', score: 0 };
+      }
+    }
+
+    // Validate and normalize
+    const sentiment = result.sentiment || 'neutral';
+    let score = Number(result.score) || 0;
+    
+    // Normalize score based on sentiment label if provided
+    if (sentiment === 'positive' && score < 0.1) score = 0.5;
+    if (sentiment === 'negative' && score > -0.1) score = -0.5;
+    if (sentiment === 'neutral' && (score > 0.1 || score < -0.1)) score = 0;
+
+    return { sentiment, score: Math.max(-1, Math.min(1, score)) };
+  } catch (error) {
+    console.error('OpenAI sentiment analysis error:', error);
+    // Fallback to neutral
+    return { sentiment: 'neutral', score: 0 };
+  }
+}
+
 module.exports = {
   generateTweet,
-  generateTweetVariations
+  generateTweetVariations,
+  analyzeSentiment
 };
 
