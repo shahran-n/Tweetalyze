@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Dashboard from './pages/Dashboard';
 import PlaceholderPage from './pages/PlaceholderPage';
+import TweetGenerator from './pages/TweetGenerator';
 
 const routes = (props) => ({
   '#/dashboard': <Dashboard {...props} />,
@@ -13,7 +14,7 @@ const routes = (props) => ({
   '#/quick-trend': <PlaceholderPage title="Quick Trend" />,
   '#/sentiment-analysis': <PlaceholderPage title="Sentiment Analysis" />,
   '#/bot-training': <PlaceholderPage title="Bot Training" />,
-  '#/tweet-generator': <PlaceholderPage title="Tweet Generator" />
+  '#/tweet-generator': <TweetGenerator />
 });
 
 export default function App() {

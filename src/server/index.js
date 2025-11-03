@@ -3,9 +3,15 @@ const os = require('os');
 const fetch = require('node-fetch');
 require('dotenv').config();
 
+// Import services
+const { generateTweet, generateTweetVariations } = require('./services/openai');
+
 const app = express();
 
+// Middleware
+app.use(express.json());
 app.use(express.static('dist'));
+
 app.get('/api/getUsername', (req, res) => res.send({ username: os.userInfo().username }));
 
 // Enhanced cache with longer TTL and better logging
@@ -245,6 +251,42 @@ app.get('/api/rate-limit-status', (req, res) => {
 app.post('/api/clear-cache', (req, res) => {
   cache.clear();
   res.json({ success: true, message: 'Cache cleared' });
+});
+
+// ==================== Tweet Generation Endpoints ====================
+
+// Generate a tweet
+app.post('/api/tweets/generate', async (req, res) => {
+  try {
+    const { prompt, options = {} } = req.body;
+    
+    if (!prompt || !prompt.trim()) {
+      return res.status(400).json({ error: 'Prompt is required' });
+    }
+
+    const tweet = await generateTweet(prompt, options);
+    res.json({ tweet });
+  } catch (error) {
+    console.error('Tweet generation error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Generate multiple tweet variations
+app.post('/api/tweets/generate-variations', async (req, res) => {
+  try {
+    const { prompt, count = 3, options = {} } = req.body;
+    
+    if (!prompt || !prompt.trim()) {
+      return res.status(400).json({ error: 'Prompt is required' });
+    }
+
+    const tweets = await generateTweetVariations(prompt, count, options);
+    res.json({ tweets });
+  } catch (error) {
+    console.error('Tweet variations error:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.listen(process.env.PORT || 8080, () => console.log(`Listening on port ${process.env.PORT || 8080}!`));
